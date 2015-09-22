@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!--Launches a race_perception_preprocessing node(let). Remaps all parameters.-->
+<launch>
+  <arg name="use_nodelets" default="0"/>
+  <!-- this flag will configure a nodes or nodelets based system-->
+  <arg name="name" default="point_cloud_filter"/>
+  <arg name="nodelet_manager_name" default="nodelet_manager"/>
+  <arg name="camera" default="camera"/>
+  <arg name="point_cloud_in_topic" default="/$(arg camera)/depth_registered/points"/>
+  <!--<group if="$(arg use_nodelets)">-->
+  <!--[> with nodelets <]-->
+  <!--<node pkg="nodelet" type="nodelet" name="$(arg name)" args="load race_perception_preprocessing/PerceptionPreprocessingNodelet $(arg nodelet_manager_name)" output="screen">-->
+  <!--<rosparam command="load" file="$(find race_perception_preprocessing)/params/default_params.yaml"/>-->
+  <!--</node>-->
+  <!--</group>-->
+  <group unless="$(arg use_nodelets)">
+    <!-- with nodes -->
+    <node pkg="point_cloud_spatial_filter" type="point_cloud_spatial_filter_node" name="$(arg name)" output="screen" required="true">
+      <rosparam command="load" file="$(find point_cloud_spatial_filter)/params/default_params.yaml"/>
+    </node>
+  </group>
+</launch>

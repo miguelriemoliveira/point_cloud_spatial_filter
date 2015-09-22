@@ -1,0 +1,4 @@
+{configure: true, fixed_frame_id: /world, point_cloud_in: /camera/depth_registered/points,
+  voxelize: true, x_max: 2.610944986343384, x_min: 0.4091026186943054, x_voxel: 0.02,
+  y_max: 1.323140263557434, y_min: -1.9780211448669434, y_voxel: 0.02, z_max: 1.9645183086395264,
+  z_min: 0.7369893193244934, z_voxel: 0.02}
