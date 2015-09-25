@@ -20,6 +20,8 @@
 #include <interactive_markers/menu_handler.h>
 #include <ros/package.h>
 #include <rospack/rospack.h>
+#include <dynamic_reconfigure/server.h>
+
 
 //PCL includes
 #include <pcl/point_cloud.h>
@@ -80,7 +82,7 @@ class PerceptionPreprocessing
            |                                 |
            |           PARAMETERS			|
            |_________________________________| */
-        double _x_min, _x_max, _y_min, _y_max, _z_min, _z_max;
+        double x_min, x_max, y_min, y_max, z_min, z_max;
         bool _voxelize;
         double _x_voxel, _y_voxel, _z_voxel;
         bool _flg_configure;
@@ -122,12 +124,12 @@ class PerceptionPreprocessing
             //initialize parameters
             _name = _p_priv_nh->getNamespace();
 
-            _p_priv_nh->param<double>("x_max", _x_max , 2.0);
-            _p_priv_nh->param<double>("x_min", _x_min , -2.0);
-            _p_priv_nh->param<double>("y_max", _y_max , 2.0);
-            _p_priv_nh->param<double>("y_min", _y_min , -2.0);
-            _p_priv_nh->param<double>("z_max", _z_max , 3.0);
-            _p_priv_nh->param<double>("z_min", _z_min , 0.0);
+            _p_priv_nh->param<double>("x_max", x_max , 2.0);
+            _p_priv_nh->param<double>("x_min", x_min , -2.0);
+            _p_priv_nh->param<double>("y_max", y_max , 2.0);
+            _p_priv_nh->param<double>("y_min", y_min , -2.0);
+            _p_priv_nh->param<double>("z_max", z_max , 3.0);
+            _p_priv_nh->param<double>("z_min", z_min , 0.0);
             _p_priv_nh->param<bool>("voxelize", _voxelize , false);
             _p_priv_nh->param<double>("x_voxel", _x_voxel , 0.01);
             _p_priv_nh->param<double>("y_voxel", _y_voxel , 0.01);
@@ -167,7 +169,7 @@ class PerceptionPreprocessing
                 *_p_marker_publisher = _p_priv_nh->advertise<visualization_msgs::MarkerArray>("rviz/filter", 100);
 
                 server.reset( new interactive_markers::InteractiveMarkerServer("preprocessing_box","",false) );
-                make6DofMarker( "preprocessing_box", "", tf::Vector3(_x_min, _y_min, _z_min), tf::Vector3(_x_max, _y_max, _z_max));
+                make6DofMarker( "preprocessing_box", "", tf::Vector3(x_min, y_min, z_min), tf::Vector3(x_max, y_max, z_max));
 
 
                 ROS_INFO_STREAM("Configuration mode is on");
@@ -177,7 +179,32 @@ class PerceptionPreprocessing
                 ROS_INFO_STREAM("Configuration mode is off");
             }
 
+            //Setup the dynamic online configuration
+            // dynamic_reconfigure::Server<point_cloud_spatial_filter::DynamicConfigurationConfig> server;
+            // dynamic_reconfigure::Server<point_cloud_spatial_filter::DynamicConfigurationConfig>::CallbackType f;
+            // f = boost::bind(&callbackDynamicReconfigure, _1, _2);
+            // server.setCallback(f);
+
         };
+
+        // void callbackDynamicReconfigure(point_cloud_spatial_filter::DynamicConfigurationConfig &config, uint32_t level) 
+        // {
+        // // Callback to allow Dynamic Reconfiguration of several parameters
+        
+        //     ROS_INFO("Reconfigure Request: Setting  x min to %f",  config.x_min);
+        //     ROS_INFO("Reconfigure Request: Setting  x max to %f",  config.x_max);
+        //     ROS_INFO("Reconfigure Request: Setting  y min to %f",  config.y_min);
+        //     ROS_INFO("Reconfigure Request: Setting  y max to %f",  config.y_max);
+        //     ROS_INFO("Reconfigure Request: Setting  z min to %f",  config.z_min);
+        //     ROS_INFO("Reconfigure Request: Setting  z max to %f",  config.z_max);
+        
+        //     x_min = (double) config.x_min;
+        //     x_max = (double) config.x_max;
+        //     y_min = (double) config.x_min;
+        //     y_max = (double) config.x_max;
+        //     z_min = (double) config.x_min;
+        //     z_max = (double) config.x_max;
+        // }
 
         void publishVisualizationMarkers(void)
         {
@@ -199,15 +226,15 @@ class PerceptionPreprocessing
                 marker.action = visualization_msgs::Marker::ADD;
                 marker.lifetime = Duration(0);
 
-                marker.pose.position.x = (_x_min + _x_max)/2;
-                marker.pose.position.y = (_y_min + _y_max)/2;
-                marker.pose.position.z = (_z_min + _z_max)/2;
+                marker.pose.position.x = (x_min + x_max)/2;
+                marker.pose.position.y = (y_min + y_max)/2;
+                marker.pose.position.z = (z_min + z_max)/2;
 
                 marker.scale.x = 0.01; //width of the line
 
-                double x = fabs(_x_min - marker.pose.position.x); 
-                double y = fabs(_y_min - marker.pose.position.y); 
-                double z = fabs(_z_min - marker.pose.position.z); 
+                double x = fabs(x_min - marker.pose.position.x); 
+                double y = fabs(y_min - marker.pose.position.y); 
+                double z = fabs(z_min - marker.pose.position.z); 
 
                 marker.color.r = 0.0;
                 marker.color.g = 0.0;
@@ -377,20 +404,20 @@ class PerceptionPreprocessing
                 case visualization_msgs::InteractiveMarkerFeedback::POSE_UPDATE:
                     if (feedback->marker_name=="corner 1")
                     {
-                        _x_min = feedback->pose.position.x;
-                        _y_min = feedback->pose.position.y;
-                        _z_min = feedback->pose.position.z;
+                        x_min = feedback->pose.position.x;
+                        y_min = feedback->pose.position.y;
+                        z_min = feedback->pose.position.z;
                     }
                     else if (feedback->marker_name=="corner 2")
                     {
-                        _x_max = feedback->pose.position.x;
-                        _y_max = feedback->pose.position.y;
-                        _z_max = feedback->pose.position.z;
+                        x_max = feedback->pose.position.x;
+                        y_max = feedback->pose.position.y;
+                        z_max = feedback->pose.position.z;
                     }
                     setConditionFilter();
 
-                    ROS_INFO_STREAM("x_min = " << _x_min << " y_min = " << _y_min << " z_min = " << _z_min);
-                    ROS_INFO_STREAM("x_max = " << _x_max << " y_max = " << _y_max << " z_max = " << _z_max);
+                    ROS_INFO_STREAM("x_min = " << x_min << " y_min = " << y_min << " z_min = " << z_min);
+                    ROS_INFO_STREAM("x_max = " << x_max << " y_max = " << y_max << " z_max = " << z_max);
                     break;
                 case visualization_msgs::InteractiveMarkerFeedback::MENU_SELECT:
                     ROS_INFO_STREAM(": menu item " << feedback->menu_entry_id << " clicked");
@@ -399,12 +426,12 @@ class PerceptionPreprocessing
                         ROS_WARN("Dumping current configuration to file");
                         string path = ros::package::getPath("point_cloud_spatial_filter");
 
-                        _p_priv_nh->setParam("x_min", _x_min);
-                        _p_priv_nh->setParam("y_min", _y_min);
-                        _p_priv_nh->setParam("z_min", _z_min);
-                        _p_priv_nh->setParam("x_max", _x_max);
-                        _p_priv_nh->setParam("y_max", _y_max);
-                        _p_priv_nh->setParam("z_max", _z_max);
+                        _p_priv_nh->setParam("x_min", x_min);
+                        _p_priv_nh->setParam("y_min", y_min);
+                        _p_priv_nh->setParam("z_min", z_min);
+                        _p_priv_nh->setParam("x_max", x_max);
+                        _p_priv_nh->setParam("y_max", y_max);
+                        _p_priv_nh->setParam("z_max", z_max);
                         std::string cmd = "rosparam dump " + path + "/params/" + "default_params.yaml /point_cloud_filter -v";
                         system(cmd.c_str());
 
@@ -424,12 +451,12 @@ class PerceptionPreprocessing
         {
             _range_cond.reset();	
             _range_cond = (boost::shared_ptr<ConditionAnd<T> >) new ConditionAnd<T>();
-            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("x", ComparisonOps::GT, _x_min)));
-            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("x", ComparisonOps::LT, _x_max)));
-            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("y", ComparisonOps::GT, _y_min)));
-            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("y", ComparisonOps::LT, _y_max)));
-            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("z", ComparisonOps::GT, _z_min)));
-            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("z", ComparisonOps::LT, _z_max)));
+            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("x", ComparisonOps::GT, x_min)));
+            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("x", ComparisonOps::LT, x_max)));
+            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("y", ComparisonOps::GT, y_min)));
+            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("y", ComparisonOps::LT, y_max)));
+            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("z", ComparisonOps::GT, z_min)));
+            _range_cond->addComparison (boost::shared_ptr< const FieldComparison<T> > (new FieldComparison<T> ("z", ComparisonOps::LT, z_max)));
 
             _range_cond1.reset();	
             _range_cond1 = (boost::shared_ptr<ConditionAnd<T> >) new ConditionAnd<T>();

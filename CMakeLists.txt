@@ -5,7 +5,9 @@ project(point_cloud_spatial_filter)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-        roscpp rospy std_msgs tf tf_conversions nodelet rviz)
+        roscpp rospy std_msgs tf tf_conversions nodelet rviz
+  		dynamic_reconfigure
+        )
 
 find_package(PCL 1.7 REQUIRED)
 include_directories(BEFORE ${PCL_INCLUDE_DIRS})
@@ -75,6 +77,14 @@ endif (NOT PCL_FOUND)
 #   std_msgs  # Or other packages containing msgs
 # )
 
+#add dynamic reconfigure api
+#find_package(catkin REQUIRED dynamic_reconfigure)
+generate_dynamic_reconfigure_options(
+  cfg/DynamicConfiguration.cfg
+)
+
+
+
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -106,6 +116,7 @@ add_library(point_cloud_spatial_filter
 
 ## Declare a cpp executable
 add_executable(point_cloud_spatial_filter_node src/point_cloud_spatial_filter_node.cpp)
+add_dependencies(point_cloud_spatial_filter ${PROJECT_NAME}_gencfg)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
