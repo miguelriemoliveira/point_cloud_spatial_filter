@@ -18,7 +18,7 @@
     <node pkg="point_cloud_spatial_filter" type="point_cloud_spatial_filter_node" name="$(arg name)" output="screen" required="true">
       <rosparam command="load" file="$(find point_cloud_spatial_filter)/params/default_params.yaml"/>
     </node>
+  </group>
 
     <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure">
-  </group>
 </launch>
