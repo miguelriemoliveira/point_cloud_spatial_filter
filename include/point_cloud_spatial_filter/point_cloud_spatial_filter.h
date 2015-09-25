@@ -20,8 +20,9 @@
 #include <interactive_markers/menu_handler.h>
 #include <ros/package.h>
 #include <rospack/rospack.h>
-#include <dynamic_reconfigure/server.h>
 
+#include <dynamic_reconfigure/server.h>
+#include <point_cloud_spatial_filter/DynamicConfigurationConfig.h>
 
 //PCL includes
 #include <pcl/point_cloud.h>
@@ -77,6 +78,7 @@ class PerceptionPreprocessing
 
         boost::shared_ptr<interactive_markers::InteractiveMarkerServer> server;
         interactive_markers::MenuHandler menu_handler;
+
 
         /* _________________________________
            |                                 |
@@ -179,32 +181,7 @@ class PerceptionPreprocessing
                 ROS_INFO_STREAM("Configuration mode is off");
             }
 
-            //Setup the dynamic online configuration
-            // dynamic_reconfigure::Server<point_cloud_spatial_filter::DynamicConfigurationConfig> server;
-            // dynamic_reconfigure::Server<point_cloud_spatial_filter::DynamicConfigurationConfig>::CallbackType f;
-            // f = boost::bind(&callbackDynamicReconfigure, _1, _2);
-            // server.setCallback(f);
-
         };
-
-        // void callbackDynamicReconfigure(point_cloud_spatial_filter::DynamicConfigurationConfig &config, uint32_t level) 
-        // {
-        // // Callback to allow Dynamic Reconfiguration of several parameters
-        
-        //     ROS_INFO("Reconfigure Request: Setting  x min to %f",  config.x_min);
-        //     ROS_INFO("Reconfigure Request: Setting  x max to %f",  config.x_max);
-        //     ROS_INFO("Reconfigure Request: Setting  y min to %f",  config.y_min);
-        //     ROS_INFO("Reconfigure Request: Setting  y max to %f",  config.y_max);
-        //     ROS_INFO("Reconfigure Request: Setting  z min to %f",  config.z_min);
-        //     ROS_INFO("Reconfigure Request: Setting  z max to %f",  config.z_max);
-        
-        //     x_min = (double) config.x_min;
-        //     x_max = (double) config.x_max;
-        //     y_min = (double) config.x_min;
-        //     y_max = (double) config.x_max;
-        //     z_min = (double) config.x_min;
-        //     z_max = (double) config.x_max;
-        // }
 
         void publishVisualizationMarkers(void)
         {
