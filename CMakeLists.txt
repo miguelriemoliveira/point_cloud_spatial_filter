@@ -6,7 +6,7 @@ project(point_cloud_spatial_filter)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
         roscpp rospy std_msgs tf tf_conversions nodelet rviz
-  		dynamic_reconfigure
+  		dynamic_reconfigure cv_bridge
         )
 
 find_package(PCL 1.7 REQUIRED)

@@ -32,6 +32,13 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/common/transforms.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+
+//Opencv
+#include <image_transport/image_transport.h>
+#include <opencv2/highgui/highgui.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
 
 
 /* _________________________________
@@ -69,6 +76,7 @@ class PerceptionPreprocessing
 
 
         boost::shared_ptr<PointCloud<T> > pc_in;
+        boost::shared_ptr<PointCloud<T> > pc_in2;
         boost::shared_ptr<PointCloud<T> > pc_transformed;
         boost::shared_ptr<PointCloud<T> > pc_filtered;
         boost::shared_ptr<PointCloud<T> > pc_downsampled;
@@ -88,6 +96,9 @@ class PerceptionPreprocessing
         bool _voxelize;
         double _x_voxel, _y_voxel, _z_voxel;
         bool _flg_configure;
+        bool _flg_use_low_pass;
+        bool _flg_use_image_filter;
+        int _xpix_min, _xpix_max, _ypix_min, _ypix_max;
         std::string _point_cloud_in;
 
         string _fixed_frame_id;
@@ -137,6 +148,13 @@ class PerceptionPreprocessing
             _p_priv_nh->param<double>("y_voxel", _y_voxel , 0.01);
             _p_priv_nh->param<double>("z_voxel", _z_voxel , 0.01);
             _p_priv_nh->param<bool>("configure", _flg_configure , false);
+            _p_priv_nh->param<bool>("use_low_pass", _flg_use_low_pass , false);
+            _p_priv_nh->param<bool>("use_image_filter", _flg_use_image_filter , false);
+            _p_priv_nh->param<int>("xpix_min", _xpix_min , 0);
+            _p_priv_nh->param<int>("xpix_max", _xpix_max , 500);
+            _p_priv_nh->param<int>("ypix_min", _ypix_min , 0);
+            _p_priv_nh->param<int>("ypix_max", _ypix_max , 500);
+
             _p_priv_nh->param<std::string>("point_cloud_in", _point_cloud_in , "camera_default/depth_registered/points");
             ROS_INFO_STREAM("_point_cloud_in topic name is " << _point_cloud_in);
 
@@ -145,6 +163,7 @@ class PerceptionPreprocessing
 
             //create point clouds
             pc_in = (boost::shared_ptr<PointCloud<T> >) new PointCloud<T>;
+            pc_in2 = (boost::shared_ptr<PointCloud<T> >) new PointCloud<T>;
             pc_transformed = (boost::shared_ptr<PointCloud<T> >) new PointCloud<T>;
             pc_filtered = (boost::shared_ptr<PointCloud<T> >) new PointCloud<T>;
             pc_downsampled = (boost::shared_ptr<PointCloud<T> >) new PointCloud<T>;
@@ -173,7 +192,8 @@ class PerceptionPreprocessing
                 server.reset( new interactive_markers::InteractiveMarkerServer("preprocessing_box","",false) );
                 make6DofMarker( "preprocessing_box", "", tf::Vector3(x_min, y_min, z_min), tf::Vector3(x_max, y_max, z_max));
 
-
+                cv::namedWindow("point_cloud_filter");
+                cv::startWindowThread();
                 ROS_INFO_STREAM("Configuration mode is on");
             }
             else
@@ -414,15 +434,68 @@ class PerceptionPreprocessing
 
                         //call(["rosparam dump three_points.yaml /ur5_with_asus_calibration -v",""], shell=True)
                         break;
-                Default:
+Default:
                         ROS_WARN("Unknonw menu entry id");
                         break;
 
-                    break;
+                        break;
             }
 
             server->applyChanges();
         }
+
+        int collectPointCloud(double time_to_wait, std::string topic, pcl::PointCloud<T>::Ptr& pc)
+        {
+            static ros::NodeHandle nh;
+            //ROS_INFO_STREAM("Waiting for a point cloud on topic " << topic);
+
+            sensor_msgs::PointCloud2::ConstPtr msg = 
+                topic::waitForMessage<sensor_msgs::PointCloud2>(topic, nh, ros::Duration(time_to_wait));
+
+            if (!msg)
+            {
+                ROS_ERROR_STREAM("No point_cloud2 has been received after " << time_to_wait << "secs");
+                return 0;
+            }
+            else
+            {
+                //ROS_INFO_STREAM("Received the point cloud");
+                pcl::fromROSMsg(*msg, *pc);
+            }
+        }
+
+
+        void getFilteredPointCloud(pcl::PointCloud<T>::Ptr& pc_filtered)
+        {
+#define _NFRAMES_ 5
+
+            pcl::PointCloud<T>::Ptr pc;
+            pc = (pcl::PointCloud<T>::Ptr) new (pcl::PointCloud<T>);
+
+            pcl::PointCloud<T>::Ptr ac;
+            ac = (pcl::PointCloud<T>::Ptr) new (pcl::PointCloud<T>);
+
+            //Collect 5 point clouds and use sor to filter
+            for (size_t i=0; i< _NFRAMES_; ++i)
+            {
+                collectPointCloud(5, _point_cloud_in, pc);
+                //remove NAN points from the cloud
+                std::vector<int> indices;
+                pcl::removeNaNFromPointCloud(*pc,*pc, indices);
+
+                (*ac) += (*pc);
+                //ROS_INFO("Size of accumulated_cloud = %ld", ac->points.size());
+            }
+
+
+            // Create the filtering object
+            pcl::StatisticalOutlierRemoval<T> sor;
+            sor.setInputCloud (ac);
+            sor.setMeanK ( _NFRAMES_);
+            sor.setStddevMulThresh (5.2);
+            sor.filter (*pc_filtered);
+        }
+
 
         void setConditionFilter(void)
         {
@@ -443,11 +516,82 @@ class PerceptionPreprocessing
 
         void pointCloudCallback(const sensor_msgs::PointCloud2Ptr& pcmsg_in)
         {
-
-            //STEP1: convert from ros msg to pcl (already removes RGB component because pc_in is pcl::PointXYZ)
-            pcl::fromROSMsg(*pcmsg_in, *pc_in);
             //ROS_INFO_STREAM("Received a point cloud with stamp " << pcmsg_in->header.stamp.toSec() << " time now is " << ros::Time::now().toSec()); //some info
+            Eigen::Affine3d eigen_trf;
 
+
+            //STEP1: convert from ros msg to pcl
+            if (_flg_use_low_pass == true)
+            {
+                getFilteredPointCloud(pc_in);
+            }
+            else
+            {
+                pcl::fromROSMsg(*pcmsg_in, *pc_in);
+            }
+
+            //Draw the ROI that is configured
+            if (_flg_configure && _flg_use_image_filter)
+            {
+
+                double time_to_wait_for_image = 2.0; //secs
+                string image_message_topic = "/camera/hd/image_color_rect";
+                ROS_INFO("Waiting for image on topic %s", image_message_topic.c_str());
+                sensor_msgs::Image::ConstPtr image_msg = ros::topic::waitForMessage<sensor_msgs::Image>(image_message_topic);
+                if (!image_msg)
+                {
+                    ROS_ERROR_STREAM("No image has been received after " << time_to_wait_for_image << "secs");
+                    return;
+                }
+                else
+                {
+                    ROS_INFO_STREAM("Received image message in topic " << image_message_topic);
+                }
+
+                cv_bridge::CvImagePtr image;
+                try
+                {
+                    image = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+                }
+                catch (cv_bridge::Exception& e)
+                {
+                    ROS_ERROR("cv_bridge exception: %s", e.what());
+                    return;
+                }
+
+                cv::Rect rect;
+                rect.x = _xpix_min;
+                rect.y = _ypix_min;
+                rect.width = _xpix_max - _xpix_min;
+                rect.height = _ypix_max - _ypix_min;
+                rectangle(image->image, rect, CV_RGB(255,0,0));
+                cv::imshow("point_cloud_filter", image->image);
+                cv::waitKey(30);
+            }
+
+
+            //Remove points outside image ROI
+            if (_flg_use_image_filter)
+            {
+                *pc_in2 = *pc_in;
+                pc_in2->clear();
+                //pc_in2->isOrganized = false;
+                for (size_t col =_xpix_min; col < _xpix_max; ++col)
+                    for (size_t row = _ypix_min; row < _ypix_max; ++row)
+                    {
+                        pc_in2->push_back(pc_in->at(col,row));    
+                        //if (col < _xpix_min || col > _xpix_max || row < _ypix_min || row > _ypix_max)
+                        //{
+                        //}
+
+                    }
+
+                pc_in2->width = pc_in2->points.size();
+                pc_in2->height = 0;
+                *pc_in = *pc_in2;
+                ROS_INFO("After image image filter point cloud has %ld points", pc_in->points.size());
+
+            }
 
             //STEP2: transform to _fixed_frame_id
             tf::StampedTransform stf;
@@ -461,10 +605,10 @@ class PerceptionPreprocessing
                 return;
             }
 
-            Eigen::Affine3d eigen_trf;
             tf::transformTFToEigen (stf, eigen_trf);
             pcl::transformPointCloud<T>(*pc_in, *pc_transformed, eigen_trf);
             pc_transformed->header.frame_id = _fixed_frame_id;
+
 
             //STEP3: remove points outside the box
             ConditionalRemoval<T> condrem(_range_cond);
