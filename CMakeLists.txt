@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(point_cloud_spatial_filter)
 
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -9,13 +10,19 @@ find_package(catkin REQUIRED COMPONENTS
   		dynamic_reconfigure cv_bridge
         )
 
-find_package(PCL 1.7 REQUIRED)
+find_package(PCL 1.8 REQUIRED)
 include_directories(BEFORE ${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 if (NOT PCL_FOUND)
     MESSAGE("PCL not found.\n")
 endif (NOT PCL_FOUND)
+
+
+find_package(OpenCV 3.1 REQUIRED)
+#find_package(OpenCV 2.4.8 REQUIRED)
+
+find_package(Eigen3 REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -107,16 +114,24 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(include)
+include_directories(
+        include
+        ${catkin_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
+        )
 
 ## Declare a cpp library
 add_library(point_cloud_spatial_filter
   src/point_cloud_spatial_filter.cpp
 )
+target_link_libraries(point_cloud_spatial_filter
+  ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS}
+)
+
 
 ## Declare a cpp executable
 add_executable(point_cloud_spatial_filter_node src/point_cloud_spatial_filter_node.cpp)
-add_dependencies(point_cloud_spatial_filter ${PROJECT_NAME}_gencfg)
+add_dependencies(point_cloud_spatial_filter ${PROJECT_NAME}_gencfg )
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -124,7 +139,7 @@ add_dependencies(point_cloud_spatial_filter ${PROJECT_NAME}_gencfg)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(point_cloud_spatial_filter_node
-  ${catkin_LIBRARIES} ${PCL_LIBRARIES}
+  ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS}
 )
 
 #############

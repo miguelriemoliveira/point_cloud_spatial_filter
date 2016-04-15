@@ -1,4 +1,5 @@
-{configure: true, fixed_frame_id: /camera_rgb_optical_frame, point_cloud_in: /camera/depth_registered/points,
-  voxelize: true, x_max: 6.52659273147583, x_min: -6.439911365509033, x_voxel: 0.02,
-  y_max: 5.236978054046631, y_min: 4.885401248931885, y_voxel: 0.02, z_max: 2.2628488540649414,
-  z_min: 0.03864175081253052, z_voxel: 0.02, use_low_pass: false, use_image_filter: false}
+{configure: true, fixed_frame_id: /table, point_cloud_in: /camera/depth_registered/points,
+  use_image_filter: false, use_low_pass: false, voxelize: false, x_max: 1.3551695346832275,
+  x_min: -0.8886573314666748, x_voxel: 0.005, xpix_max: 1670, xpix_min: 250, y_max: 0.7601796388626099,
+  y_min: -0.8164942264556885, y_voxel: 0.005, ypix_max: 830, ypix_min: 250, z_max: 0.6205074191093445,
+  z_min: -0.4381573796272278, z_voxel: 0.005}
