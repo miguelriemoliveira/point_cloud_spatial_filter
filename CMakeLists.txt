@@ -18,11 +18,9 @@ if (NOT PCL_FOUND)
     MESSAGE("PCL not found.\n")
 endif (NOT PCL_FOUND)
 
+find_package(OpenCV 2 REQUIRED)
 
-find_package(OpenCV 3.1 REQUIRED)
-#find_package(OpenCV 2.4.8 REQUIRED)
-
-find_package(Eigen3 REQUIRED)
+#find_package(Eigen3 REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
