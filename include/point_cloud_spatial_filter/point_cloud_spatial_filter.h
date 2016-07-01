@@ -87,7 +87,6 @@ class PerceptionPreprocessing
         boost::shared_ptr<interactive_markers::InteractiveMarkerServer> server;
         interactive_markers::MenuHandler menu_handler;
 
-
         /* _________________________________
            |                                 |
            |           PARAMETERS			|
@@ -100,6 +99,7 @@ class PerceptionPreprocessing
         bool _flg_use_image_filter;
         int _xpix_min, _xpix_max, _ypix_min, _ypix_max;
         std::string _point_cloud_in;
+        int _image_width, _image_height;
 
         string _fixed_frame_id;
         /* _________________________________
@@ -161,6 +161,10 @@ class PerceptionPreprocessing
             _p_priv_nh->param<std::string>("fixed_frame_id", _fixed_frame_id, "/camera_default_rgb_optical_frame");
             ROS_INFO_STREAM("_fixed_frame_id is " << _fixed_frame_id); 
 
+            _image_height = 240;
+            _image_width = 320;
+
+
             //create point clouds
             pc_in = (boost::shared_ptr<PointCloud<T> >) new PointCloud<T>;
             pc_in2 = (boost::shared_ptr<PointCloud<T> >) new PointCloud<T>;
@@ -192,7 +196,9 @@ class PerceptionPreprocessing
                 server.reset( new interactive_markers::InteractiveMarkerServer("preprocessing_box","",false) );
                 make6DofMarker( "preprocessing_box", "", tf::Vector3(x_min, y_min, z_min), tf::Vector3(x_max, y_max, z_max));
 
-                cv::namedWindow("point_cloud_filter");
+                cv::namedWindow("point_cloud_filter", CV_WINDOW_NORMAL);
+                cv::setMouseCallback( "point_cloud_filter", staticOnMouse, this );
+                cv::resizeWindow("point_cloud_filter", 480, 270);
                 cv::startWindowThread();
                 ROS_INFO_STREAM("Configuration mode is on");
             }
@@ -429,6 +435,11 @@ class PerceptionPreprocessing
                         _p_priv_nh->setParam("x_max", x_max);
                         _p_priv_nh->setParam("y_max", y_max);
                         _p_priv_nh->setParam("z_max", z_max);
+                        _p_priv_nh->setParam("xpix_min", _xpix_min);
+                        _p_priv_nh->setParam("xpix_max", _xpix_max);
+                        _p_priv_nh->setParam("ypix_min", _ypix_min);
+                        _p_priv_nh->setParam("ypix_max", _ypix_max);
+
                         std::string cmd = "rosparam dump " + path + "/params/" + "default_params.yaml /point_cloud_filter -v";
                         system(cmd.c_str());
 
@@ -442,6 +453,35 @@ Default:
             }
 
             server->applyChanges();
+        }
+
+        /**
+         * @brief A static wrapper for the onMouse method
+         *
+         * @param event
+         * @param x
+         * @param y
+         * @param flags
+         * @param userdata
+         */
+        static void staticOnMouse( int event, int x, int y, int flags, void* userdata)
+        {
+            PerceptionPreprocessing *self = static_cast<PerceptionPreprocessing*>(userdata);
+            self->onMouse(event, x, y, flags);
+        }
+
+        void onMouse( int event, int x, int y, int flags)
+        {
+            if( event != cv::EVENT_LBUTTONDOWN )
+                return;
+
+            ROS_INFO("Image filter boundaries reconfigured");
+
+            _xpix_min = x;
+            _ypix_min = y;
+            _xpix_max = _image_width - x;
+            _ypix_max = _image_height - y;
+
         }
 
         int collectPointCloud(double time_to_wait, std::string topic, pcl::PointCloud<T>::Ptr& pc)
@@ -516,7 +556,7 @@ Default:
 
         void pointCloudCallback(const sensor_msgs::PointCloud2Ptr& pcmsg_in)
         {
-            //ROS_INFO_STREAM("Received a point cloud with stamp " << pcmsg_in->header.stamp.toSec() << " time now is " << ros::Time::now().toSec()); //some info
+            ROS_INFO_STREAM("Received a point cloud [width " << pcmsg_in->width << ", height " << pcmsg_in->height << "] points, with stamp " << pcmsg_in->header.stamp.toSec() << " time now is " << ros::Time::now().toSec()); //some info
             Eigen::Affine3d eigen_trf;
 
 
@@ -530,13 +570,15 @@ Default:
                 pcl::fromROSMsg(*pcmsg_in, *pc_in);
             }
 
+            ROS_INFO("After low pass filter cloud has %ld points", pc_in->points.size());
+
             //Draw the ROI that is configured
             if (_flg_configure && _flg_use_image_filter)
             {
 
                 double time_to_wait_for_image = 2.0; //secs
                 string image_message_topic = "/camera/hd/image_color_rect";
-                ROS_INFO("Waiting for image on topic %s", image_message_topic.c_str());
+                //ROS_INFO("Waiting for image on topic %s", image_message_topic.c_str());
                 sensor_msgs::Image::ConstPtr image_msg = ros::topic::waitForMessage<sensor_msgs::Image>(image_message_topic);
                 if (!image_msg)
                 {
@@ -559,12 +601,15 @@ Default:
                     return;
                 }
 
+                _image_height = image->image.rows;
+                _image_width = image->image.cols;
+
                 cv::Rect rect;
                 rect.x = _xpix_min;
                 rect.y = _ypix_min;
                 rect.width = _xpix_max - _xpix_min;
                 rect.height = _ypix_max - _ypix_min;
-                rectangle(image->image, rect, CV_RGB(255,0,0));
+                rectangle(image->image, rect, CV_RGB(255,0,0),3);
                 cv::imshow("point_cloud_filter", image->image);
                 cv::waitKey(30);
             }
@@ -587,11 +632,13 @@ Default:
                     }
 
                 pc_in2->width = pc_in2->points.size();
-                pc_in2->height = 0;
+                pc_in2->height = 1;
                 *pc_in = *pc_in2;
-                ROS_INFO("After image image filter point cloud has %ld points", pc_in->points.size());
+                //ROS_INFO("After image image filter point cloud has %ld points", pc_in->points.size());
 
             }
+
+            //ROS_INFO("After image filter cloud has %ld points", pc_in2->points.size());
 
             //STEP2: transform to _fixed_frame_id
             tf::StampedTransform stf;
@@ -610,12 +657,31 @@ Default:
             pc_transformed->header.frame_id = _fixed_frame_id;
 
 
+            //ROS_INFO("pc_transformed has %ld points", pc_transformed->points.size());
             //STEP3: remove points outside the box
+
+            //for (size_t i=0; i < pc_transformed->points.size(); ++i)
+            //{
+                //double x = pc_transformed->points[i].x;
+                //double y = pc_transformed->points[i].y;
+                //double z = pc_transformed->points[i].z;
+                //cout << "pt[" << i << "] = " << x << ", " << y << ", " << z << endl;
+                //if ( x > x_min && x < x_max &&
+                     //y > y_min && y < y_max &&
+                     //z > z_min && z < z_max) 
+                //{
+                    //cout << "oalaoa" << endl;
+                    //pc_filtered->points.push_back(pc_transformed->points[i]);
+                //}
+            
+            //}
+
             ConditionalRemoval<T> condrem(_range_cond);
             condrem.setInputCloud(pc_transformed);
             condrem.setKeepOrganized(false);
             condrem.filter(*pc_filtered);
-            //ROS_INFO_STREAM("After filtering point cloud has " << pc_filtered->points.size() << " points");
+            //ROS_INFO_STREAM("After box filtering point cloud has " << pc_filtered->points.size() << " points");
+
 
             //STEP4: voxelize
             if (_voxelize==true)
@@ -624,23 +690,24 @@ Default:
                 _vg.setInputCloud(pc_filtered);
                 _vg.setLeafSize(_x_voxel, _y_voxel, _z_voxel);
                 _vg.filter(*pc_downsampled);
-                //ROS_INFO_STREAM("After dowsampling point cloud has " << pc_downsampled->points.size() << " points");
             }
             else
             {
                 *pc_downsampled = *pc_filtered;
             }
 
-
             //STEP5: transform the point cloud back to the sensor frame_id
             pcl::transformPointCloud<T>(*pc_downsampled, *pc_downsampled, eigen_trf.inverse());
             pc_downsampled->header.frame_id = pcmsg_in->header.frame_id;
+
+            ROS_INFO("pc_downsampled has %ld points", pc_downsampled->points.size());
 
             //STEP6: Publish the point cloud
             toROSMsg(*pc_downsampled, msg_out);
             msg_out.header.frame_id = pcmsg_in->header.frame_id;
             msg_out.header.stamp = pcmsg_in->header.stamp;
             _p_pc_publisher->publish(msg_out);
+
 
 
             if (_flg_configure==true)
