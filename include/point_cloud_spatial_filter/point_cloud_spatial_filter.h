@@ -556,10 +556,13 @@ Default:
 
         void pointCloudCallback(const sensor_msgs::PointCloud2Ptr& pcmsg_in)
         {
-            ROS_INFO_STREAM("Received a point cloud [width " << pcmsg_in->width << ", height " << pcmsg_in->height << "] points, with stamp " << pcmsg_in->header.stamp.toSec() << " time now is " << ros::Time::now().toSec()); //some info
+            ros::Time t;
+
+            ROS_INFO_STREAM("\nReceived a point cloud [width " << pcmsg_in->width << ", height " << pcmsg_in->height << "] points, with stamp " << pcmsg_in->header.stamp.toSec() << " time now is " << ros::Time::now().toSec()); //some info
             Eigen::Affine3d eigen_trf;
 
-
+    
+            t = ros::Time::now();
             //STEP1: convert from ros msg to pcl
             if (_flg_use_low_pass == true)
             {
@@ -569,10 +572,10 @@ Default:
             {
                 pcl::fromROSMsg(*pcmsg_in, *pc_in);
             }
-
-            ROS_INFO("After low pass filter cloud has %ld points", pc_in->points.size());
+            ROS_INFO("Low pass filter: %ld points (%0.3f secs) ", pc_in->points.size(), (ros::Time::now() - t).toSec());
 
             //Draw the ROI that is configured
+            t = ros::Time::now();
             if (_flg_configure && _flg_use_image_filter)
             {
 
@@ -612,10 +615,13 @@ Default:
                 rectangle(image->image, rect, CV_RGB(255,0,0),3);
                 cv::imshow("point_cloud_filter", image->image);
                 cv::waitKey(30);
+
+                ROS_INFO("Draw roi:l(%0.3f secs) ", (Time::now() - t).toSec());
             }
 
 
             //Remove points outside image ROI
+            t = ros::Time::now();
             if (_flg_use_image_filter)
             {
                 *pc_in2 = *pc_in;
@@ -634,13 +640,12 @@ Default:
                 pc_in2->width = pc_in2->points.size();
                 pc_in2->height = 1;
                 *pc_in = *pc_in2;
-                //ROS_INFO("After image image filter point cloud has %ld points", pc_in->points.size());
-
+                ROS_INFO("Image ROI: %ld points (%0.3f secs)", pc_in->points.size(), (Time::now() - t).toSec());
             }
 
-            //ROS_INFO("After image filter cloud has %ld points", pc_in2->points.size());
 
             //STEP2: transform to _fixed_frame_id
+            t = ros::Time::now();
             tf::StampedTransform stf;
             try
             {
@@ -676,12 +681,13 @@ Default:
             
             //}
 
+
+            t = ros::Time::now();
             ConditionalRemoval<T> condrem(_range_cond);
             condrem.setInputCloud(pc_transformed);
             condrem.setKeepOrganized(false);
             condrem.filter(*pc_filtered);
-            //ROS_INFO_STREAM("After box filtering point cloud has " << pc_filtered->points.size() << " points");
-
+            ROS_INFO("Box filter: %ld points (%0.3f secs)", pc_filtered->points.size(), (Time::now() - t).toSec());
 
             //STEP4: voxelize
             if (_voxelize==true)
@@ -690,6 +696,7 @@ Default:
                 _vg.setInputCloud(pc_filtered);
                 _vg.setLeafSize(_x_voxel, _y_voxel, _z_voxel);
                 _vg.filter(*pc_downsampled);
+                ROS_INFO("Voxel grid filter: %ld points (%0.3f secs)", pc_downsampled->points.size(), (Time::now() - t).toSec());
             }
             else
             {
@@ -697,10 +704,11 @@ Default:
             }
 
             //STEP5: transform the point cloud back to the sensor frame_id
+            t = ros::Time::now();
             pcl::transformPointCloud<T>(*pc_downsampled, *pc_downsampled, eigen_trf.inverse());
             pc_downsampled->header.frame_id = pcmsg_in->header.frame_id;
 
-            ROS_INFO("pc_downsampled has %ld points", pc_downsampled->points.size());
+            ROS_INFO("Transform cloud: %ld points (%0.3f secs)", pc_downsampled->points.size(), (Time::now() - t).toSec());
 
             //STEP6: Publish the point cloud
             toROSMsg(*pc_downsampled, msg_out);
