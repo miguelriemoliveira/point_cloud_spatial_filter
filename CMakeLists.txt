@@ -18,9 +18,11 @@ if (NOT PCL_FOUND)
     MESSAGE("PCL not found.\n")
 endif (NOT PCL_FOUND)
 
-find_package(OpenCV 2 REQUIRED)
+#find_package(OpenCV 2 REQUIRED)
+find_package(OpenCV)
 
-#find_package(Eigen3 REQUIRED)
+find_package(Qt5Test)
+find_package(Qt5Concurrent)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
